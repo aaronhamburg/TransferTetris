@@ -71,14 +71,6 @@ class Matris(object):
         
         self.paused = False
 
-        self.highscore = load_score()
-        self.played_highscorebeaten_sound = False
-
-        self.levelup_sound  = get_sound("levelup.wav")
-        self.gameover_sound = get_sound("gameover.wav")
-        self.linescleared_sound = get_sound("linecleared.wav")
-        self.highscorebeaten_sound = get_sound("highscorebeaten.wav")
-
 
     def set_tetrominoes(self):
         self.current_tetromino = self.next_tetromino
@@ -303,17 +295,9 @@ class Matris(object):
         self.lines += lines_cleared
 
         if lines_cleared:
-            if lines_cleared >= 4:
-                self.linescleared_sound.play()
             self.score += 100 * (lines_cleared**2) * self.combo
 
-            if not self.played_highscorebeaten_sound and self.score > self.highscore:
-                if self.highscore != 0:
-                    self.highscorebeaten_sound.play()
-                self.played_highscorebeaten_sound = True
-
         if self.lines >= self.level*10:
-            self.levelup_sound.play()
             self.level += 1
 
         self.combo = self.combo + 1 if lines_cleared else 1
@@ -321,7 +305,6 @@ class Matris(object):
         self.set_tetrominoes()
 
         if not self.blend():
-            self.gameover_sound.play()
             self.gameover()
             
         self.needs_redraw = True
