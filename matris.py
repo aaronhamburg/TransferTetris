@@ -4,6 +4,7 @@ from pygame import Rect, Surface
 import random
 import os
 import kezmenu
+import numpy as np
 
 from tetrominoes import list_of_tetrominoes
 from tetrominoes import rotate
@@ -12,9 +13,6 @@ from scores import load_score, write_score
 
 class GameOver(Exception):
     """Exception used for its control flow properties"""
-
-def get_sound(filename):
-    return pygame.mixer.Sound(os.path.join(os.path.dirname(__file__), "resources", filename))
 
 BGCOLOR = (15, 15, 20)
 BORDERCOLOR = (140, 140, 140)
@@ -71,6 +69,19 @@ class Matris(object):
         
         self.paused = False
 
+    def current_state(self):
+        state = np.empty((MATRIX_HEIGHT, MATRIX_WIDTH))
+        print(state.shape)
+        for key in self.matrix.keys():
+            val = self.matrix.get(key)
+            if val == None or val == False:
+                state[(key[0], key[1])] = 0
+            elif val[0] == 'block':
+                state[(key[0], key[1])] = 1
+            else:
+                state[(key[0], key[1])] = 0
+            # state[key[0]][key[1]] = self.matrix[key]
+        print(state)
 
     def set_tetrominoes(self):
         self.current_tetromino = self.next_tetromino
@@ -93,6 +104,7 @@ class Matris(object):
 
     def update(self, timepassed):
         self.needs_redraw = False
+        self.current_state()
         
         pressed = lambda key: event.type == pygame.KEYDOWN and event.key == key
         unpressed = lambda key: event.type == pygame.KEYUP and event.key == key
