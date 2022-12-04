@@ -426,7 +426,8 @@ class Game(object):
 
         self.matris = Matris(self.screen, draw_screen=draw_screen)
 
-        if draw_screen:
+        # screen will always be drawn if comp_control is False
+        if draw_screen or not comp_control:
             self.screen.blit(construct_nightmare(self.screen.get_size()), (0,0))
             matris_border = Surface((MATRIX_WIDTH*BLOCKSIZE+BORDERWIDTH*2, VISIBLE_MATRIX_HEIGHT*BLOCKSIZE+BORDERWIDTH*2))
             matris_border.fill(BORDERCOLOR)
@@ -434,7 +435,6 @@ class Game(object):
             
             self.redraw()
 
-        # screen will always be drawn if comp_control is False
         if not comp_control:
             clock = pygame.time.Clock()
             
