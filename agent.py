@@ -1,6 +1,4 @@
 from matris import Game, GameOver, WIDTH, HEIGHT
-import matris
-import pygame
 import time
 import random
 
@@ -17,8 +15,8 @@ class Agent(object):
                 rotation, position = self.pick_action(game.matris.current_state())
                 if draw_screen:
                     time.sleep(0.2)
-                print(rotation)
                 score = game.matris.computer_update(rotation, position)
+                # return whether done and next state, maybe can set next_state = current state at the start of the loop if it's set
                 if draw_screen: 
                     time.sleep(0.2)
                 print(score)
@@ -38,4 +36,4 @@ class Agent(object):
 
 if __name__ == '__main__':
     agent = Agent()
-    agent.run_episode(draw_screen=True)
+    agent.run_episode(draw_screen=False)

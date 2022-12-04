@@ -111,10 +111,9 @@ class Matris(object):
 
     
     def hard_drop(self):
-        amount = 0
         while self.request_movement('down'):
-            amount += 1
-        self.score += 10*amount
+            pass
+        self.score += 20
 
         self.lock_tetromino()
 
@@ -129,7 +128,7 @@ class Matris(object):
         
         left, right = piece_range(self.rotated(self.tetromino_rotation))
         if position not in range(-left, 10 - right):
-            print("invalid position :(")
+            self.score -= 100
         
 
         start_pos = self.tetromino_position[1]
