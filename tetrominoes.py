@@ -1,5 +1,6 @@
 from __future__ import print_function
 from collections import namedtuple
+import numpy as np
 
 X, O = 'X', None
 Tetromino = namedtuple("Tetrimino", "name color shape")
@@ -46,6 +47,23 @@ def rotate(shape, times=1):
     """ Rotate a shape to the right """
     return shape if times == 0 else rotate(tuple(zip(*shape[::-1])), times-1)
 
+# returns the number of empty spaces to the left of the piece and 
+# the number of spaces from the left of the piece (including blanks) 
+# to the right of the actual piece
+def piece_range(shape):
+    a = np.array(shape)
+    right = 0
+    left = 0
+    found_piece = False
+    for i in range(a.shape[0]):
+        if 'X' not in a[:,i]:
+            if not found_piece:
+                left = i + 1
+        else:
+            found_piece = True
+            right = i + 1
+
+    return (left, right)
 
 def shape_str(shape):
     """ Return a string of a shape in human readable form """

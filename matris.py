@@ -2,14 +2,9 @@
 import pygame
 from pygame import Rect, Surface
 import random
-import os
-import kezmenu
 import numpy as np
 
-from tetrominoes import list_of_tetrominoes
-from tetrominoes import rotate
-
-from scores import load_score, write_score
+from tetrominoes import Tetromino, list_of_tetrominoes, rotate, piece_range
 
 class GameOver(Exception):
     """Exception used for its control flow properties"""
@@ -34,11 +29,16 @@ TRICKY_CENTERX = WIDTH-(WIDTH-(MATRIS_OFFSET+BLOCKSIZE*MATRIX_WIDTH+BORDERWIDTH*
 
 VISIBLE_MATRIX_HEIGHT = MATRIX_HEIGHT - 2
 
+pygame.init()
 
 class Matris(object):
-    def __init__(self):
-        self.surface = screen.subsurface(Rect((MATRIS_OFFSET+BORDERWIDTH, MATRIS_OFFSET+BORDERWIDTH),
-                                              (MATRIX_WIDTH * BLOCKSIZE, (MATRIX_HEIGHT-2) * BLOCKSIZE)))
+    def __init__(self, screen: Surface, draw_screen=True):
+        
+        self.draw_screen = draw_screen
+
+        if draw_screen:
+            self.surface = screen.subsurface(Rect((MATRIS_OFFSET+BORDERWIDTH, MATRIS_OFFSET+BORDERWIDTH),
+                                                (MATRIX_WIDTH * BLOCKSIZE, (MATRIX_HEIGHT-2) * BLOCKSIZE)))
 
         self.matrix = dict()
         for y in range(MATRIX_HEIGHT):
@@ -69,19 +69,36 @@ class Matris(object):
         
         self.paused = False
 
+    # returns a 2D np array representing the board state and current and next pieces
     def current_state(self):
-        state = np.empty((MATRIX_HEIGHT, MATRIX_WIDTH))
-        print(state.shape)
+        board_state = np.empty((MATRIX_HEIGHT, MATRIX_WIDTH))
         for key in self.matrix.keys():
             val = self.matrix.get(key)
             if val == None or val == False:
-                state[(key[0], key[1])] = 0
+                board_state[(key[0], key[1])] = 0
             elif val[0] == 'block':
-                state[(key[0], key[1])] = 1
+                board_state[(key[0], key[1])] = 1
             else:
-                state[(key[0], key[1])] = 0
-            # state[key[0]][key[1]] = self.matrix[key]
-        print(state)
+                board_state[(key[0], key[1])] = 0
+
+        piece_state = np.zeros((4, MATRIX_WIDTH))
+        cur_piece = self.piece_to_array(self.current_tetromino)
+        next_piece = self.piece_to_array(self.next_tetromino)
+        cur_piece_size = cur_piece.shape[0]
+        next_piece_size = next_piece.shape[0]
+        piece_state[0:int(cur_piece_size), 0:int(cur_piece_size)] = cur_piece
+        piece_state[0:int(next_piece_size), 5:int(5+next_piece_size)] = next_piece
+
+        return np.concatenate((piece_state, board_state), axis=0)
+
+    # converts a Tetromino to a 2D np array containing 1's and 0's
+    def piece_to_array(self, piece: Tetromino):
+        piece_shape = np.asarray(piece.shape)
+        for col in range(len(piece_shape)):
+            for row in range(len(piece_shape)):
+                piece_shape[col, row] = 1 if piece_shape[col, row] else 0
+        return piece_shape
+
 
     def set_tetrominoes(self):
         self.current_tetromino = self.next_tetromino
@@ -101,10 +118,35 @@ class Matris(object):
 
         self.lock_tetromino()
 
+    def computer_update(self, rotation, position):
+        # TODO: check that rotation and position are valid
+        # *may* not need to handle this since the environment will prevent illegal moves
+
+        start_score = self.score
+
+        for i in range(rotation):
+            self.request_rotation()
+        
+        left, right = piece_range(self.rotated(self.tetromino_rotation))
+        if position not in range(-left, 10 - right):
+            print("invalid position :(")
+        
+
+        start_pos = self.tetromino_position[1]
+        if position <= start_pos:
+            for i in range(start_pos - position):
+                self.request_movement('left')
+        else:
+            for i in range(position - start_pos):
+                self.request_movement('right')
+        
+        self.hard_drop()
+
+        return self.score - start_score
+        
 
     def update(self, timepassed):
         self.needs_redraw = False
-        self.current_state()
         
         pressed = lambda key: event.type == pygame.KEYDOWN and event.key == key
         unpressed = lambda key: event.type == pygame.KEYUP and event.key == key
@@ -189,8 +231,6 @@ class Matris(object):
         after a "natural" drop or a hard drop by the player. That is why `self.lock_tetromino`
         is responsible for checking if it's game over.
         """
-
-        write_score(self.score)
         
         if full_exit:
             exit()
@@ -379,26 +419,33 @@ class Matris(object):
         return surf
 
 class Game(object):
-    def main(self, screen):
-        clock = pygame.time.Clock()
+    def main(self, draw_screen=True, comp_control=False):
 
-        self.matris = Matris()
-        
-        screen.blit(construct_nightmare(screen.get_size()), (0,0))
-        
-        matris_border = Surface((MATRIX_WIDTH*BLOCKSIZE+BORDERWIDTH*2, VISIBLE_MATRIX_HEIGHT*BLOCKSIZE+BORDERWIDTH*2))
-        matris_border.fill(BORDERCOLOR)
-        screen.blit(matris_border, (MATRIS_OFFSET,MATRIS_OFFSET))
-        
-        self.redraw()
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT)) if draw_screen else None
 
-        while True:
-            try:
-                timepassed = clock.tick(50)
-                if self.matris.update((timepassed / 1000.) if not self.matris.paused else 0):
-                    self.redraw()
-            except GameOver:
-                return
+
+        self.matris = Matris(self.screen, draw_screen=draw_screen)
+
+        if draw_screen:
+            self.screen.blit(construct_nightmare(self.screen.get_size()), (0,0))
+            matris_border = Surface((MATRIX_WIDTH*BLOCKSIZE+BORDERWIDTH*2, VISIBLE_MATRIX_HEIGHT*BLOCKSIZE+BORDERWIDTH*2))
+            matris_border.fill(BORDERCOLOR)
+            self.screen.blit(matris_border, (MATRIS_OFFSET,MATRIS_OFFSET))
+            
+            self.redraw()
+
+        # screen will always be drawn if comp_control is False
+        if not comp_control:
+            clock = pygame.time.Clock()
+            
+            while True:
+                try:
+                    timepassed = clock.tick(50)
+                    if self.matris.update((timepassed / 1000.) if not self.matris.paused else 0):
+                        self.redraw()
+                except GameOver:
+                    return
+                    
       
 
     def redraw(self):
@@ -445,7 +492,7 @@ class Game(object):
         area.blit(linessurf, (0, levelsurf.get_rect().height + scoresurf.get_rect().height))
         area.blit(combosurf, (0, levelsurf.get_rect().height + scoresurf.get_rect().height + linessurf.get_rect().height))
 
-        screen.blit(area, area.get_rect(bottom=HEIGHT-MATRIS_OFFSET, centerx=TRICKY_CENTERX))
+        self.screen.blit(area, area.get_rect(bottom=HEIGHT-MATRIS_OFFSET, centerx=TRICKY_CENTERX))
 
 
     def blit_next_tetromino(self, tetromino_surf):
@@ -460,50 +507,7 @@ class Game(object):
         center = areasize/2 - tetromino_surf_size/2
         area.blit(tetromino_surf, (center, center))
 
-        screen.blit(area, area.get_rect(top=MATRIS_OFFSET, centerx=TRICKY_CENTERX))
-
-class Menu(object):
-    running = True
-    def main(self, screen):
-        clock = pygame.time.Clock()
-        menu = kezmenu.KezMenu(
-            ['Play!', lambda: Game().main(screen)],
-            ['Quit', lambda: setattr(self, 'running', False)],
-        )
-        menu.position = (50, 50)
-        menu.enableEffect('enlarge-font-on-focus', font=None, size=60, enlarge_factor=1.2, enlarge_time=0.3)
-        menu.color = (255,255,255)
-        menu.focus_color = (40, 200, 40)
-
-        nightmare = construct_nightmare(screen.get_size())
-        highscoresurf = self.construct_highscoresurf()
-
-        timepassed = clock.tick(30) / 1000.
-
-        while self.running:
-            events = pygame.event.get()
-
-            for event in events:
-                if event.type == pygame.QUIT:
-                    exit()
-
-            menu.update(events, timepassed)
-
-            timepassed = clock.tick(30) / 1000.
-
-            if timepassed > 1: # A game has most likely been played 
-                highscoresurf = self.construct_highscoresurf()
-
-            screen.blit(nightmare, (0,0))
-            screen.blit(highscoresurf, highscoresurf.get_rect(right=WIDTH-50, bottom=HEIGHT-50))
-            menu.draw(screen)
-            pygame.display.flip()
-
-    def construct_highscoresurf(self):
-        font = pygame.font.Font(None, 50)
-        highscore = load_score()
-        text = "Highscore: {}".format(highscore)
-        return font.render(text, True, (255,255,255))
+        self.screen.blit(area, area.get_rect(top=MATRIS_OFFSET, centerx=TRICKY_CENTERX))
 
 def construct_nightmare(size):
     surf = Surface(size)
@@ -526,8 +530,5 @@ def construct_nightmare(size):
 
 
 if __name__ == '__main__':
-    pygame.init()
-
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("MaTris")
-    Menu().main(screen)
+    Game().main()
