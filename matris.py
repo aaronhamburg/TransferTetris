@@ -113,7 +113,7 @@ class Matris(object):
     def hard_drop(self):
         while self.request_movement('down'):
             pass
-        self.score += 20
+        # self.score += 20
 
         self.lock_tetromino()
 
