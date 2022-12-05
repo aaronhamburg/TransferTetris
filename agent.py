@@ -7,10 +7,10 @@ import numpy as np
 # from gym import wrappers
 import tensorflow as tf
 from tensorflow import keras
+from tensorflow.keras import layers, models
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Activation
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.metrics import mean_squared_error
 from matplotlib import pyplot as plt
 import pygame
 
@@ -40,15 +40,25 @@ class Agent(object):
         # The first layer has the same size as a state size
         # The last layer has the size of actions space
 
-        self.model = Sequential([
-            Dense(units=24,input_dim=MATRIX_WIDTH * (MATRIX_HEIGHT + 4), activation = 'relu'),
-            Dense(units=24,activation = 'relu'),
-            Dense(units=self.n_actions, activation = 'linear')
-        ])
+        # self.model = Sequential([
+        #     Dense(units=24,input_dim=MATRIX_WIDTH * (MATRIX_HEIGHT + 4), activation = 'relu'),
+        #     Dense(units=24,activation = 'relu'),
+        #     Dense(units=self.n_actions, activation = 'linear')
+        # ])
+        model = models.Sequential()
+        model.add(layers.Conv2D(32, (7, 7), padding='same', activation='relu', input_shape=(26, 10, 1)))
+        model.add(layers.MaxPooling2D((2, 2)))
+        model.add(layers.Conv2D(64, (5, 5), padding='same', activation='relu'))
+        model.add(layers.MaxPooling2D((2, 2)))
+        model.add(layers.Conv2D(64, (3, 3), padding='same', activation='relu'))
+        model.add(layers.Flatten())
+        model.add(layers.Dense(64, activation='relu'))
+        model.add(layers.Dense(self.n_actions, activation='linear'))
+        self.model = model
         self.model.compile(loss="mse",
                       optimizer = Adam(learning_rate=self.lr))
 
-    def run_episode(self, draw_screen=False):
+    def run_episode(self, draw_screen=False, always_explore=False):
         game = Game()
         game.main(draw_screen=draw_screen, comp_control=True)
         next_state = None
@@ -56,6 +66,7 @@ class Agent(object):
         action = None
         reward = None
         steps = 0
+        total_score = 0
         while True:
             try:
                 if next_state is not None:
@@ -64,41 +75,44 @@ class Agent(object):
                     current_state = game.matris.current_state()
 
                 steps += 1
-                action = self.compute_action(current_state)
+                action = self.compute_action(current_state, always_explore=always_explore)
                 rotation, position = self.action_to_tuple(action)
                 if draw_screen:
                     time.sleep(DRAW_WAIT_TIME)
                 reward = game.matris.computer_update(rotation, position)
+                total_score += reward
                 next_state = game.matris.current_state()
                 # return whether done and next state, maybe can set next_state = current state at the start of the loop if it's set
 
                 # We store each experience in the memory buffer
-                self.store_episode(current_state.reshape((1,260)), action, reward, next_state.reshape((1,260)), False)
+                self.store_episode(current_state, action, reward, next_state, False)
 
                 if draw_screen: 
                     time.sleep(DRAW_WAIT_TIME)
                     game.redraw()
             except GameOver:
                 next_state = game.matris.current_state()
-                self.store_episode(current_state.reshape((1,260)), action, 0, next_state.reshape((1,260)), True)
-                self.update_exploration_probability()
+                self.store_episode(current_state, action, 0, next_state, True)
+                if not always_explore:
+                    self.update_exploration_probability()
                 if draw_screen:
                     time.sleep(DRAW_WAIT_TIME)
                     pygame.display.quit()
-                return steps
+                return (steps, total_score)
 
 
     # The agent computes the action to perform given a state 
-    def compute_action(self, current_state):
+    def compute_action(self, current_state, always_explore=False):
         # We sample a variable uniformly over [0,1]
         # if the variable is less than the exploration probability
         #     we choose an action randomly
         # else
         #     we forward the state through the DNN and choose the action 
         #     with the highest Q-value.
-        if np.random.uniform(0,1) < self.exploration_proba:
+        if always_explore or np.random.uniform(0,1) < self.exploration_proba:
             return np.random.choice(range(self.n_actions))
-        q_values = self.model.predict(current_state.reshape((1,260)))[0]
+
+        q_values = self.model.predict(np.array([current_state]))[0]
         return np.argmax(q_values)
 
 
@@ -119,10 +133,10 @@ class Agent(object):
     def store_episode(self,current_state, action, reward, next_state, done):
         #We use a dictionnary to store them
         self.memory_buffer.append({
-            "current_state":current_state,
+            "current_state":np.array([current_state]),
             "action":action,
             "reward":reward,
-            "next_state":next_state,
+            "next_state":np.array([next_state]),
             "done" :done
         })
         # If the size of memory buffer exceeds its maximum, we remove the oldest experience
@@ -154,20 +168,41 @@ if __name__ == '__main__':
     # env = gym.make("CartPole-v1")
     
     # Number of episodes to run
-    n_episodes = 400
-    draw_frequency = 50
+    n_explore_episodes = 500
+    n_episodes = 1000
+    
+    # After how many episodes it should be drawn (if 0 it will never draw)
+    draw_frequency = 100
+
+    total_steps = 0
+    scores = np.zeros(n_episodes)
     # We define our agent
     agent = Agent()
 
     for ep in range(n_episodes):
         
-        total_steps = 0
+        if ep % 10 == 0:
+            print("Episode " + str(ep + 1))
+        
 
-        total_steps += agent.run_episode(draw_screen=ep % draw_frequency == draw_frequency - 1)
+        explore = ep < n_explore_episodes
+
+        draw = False
+        if not draw_frequency == 0:
+            draw = ep % draw_frequency == draw_frequency - 1
+        steps, score = agent.run_episode(draw_screen=draw and not explore, always_explore=explore)
+        total_steps += steps
+        scores[ep] = score
 
         if total_steps >= agent.batch_size:
             print("reached agent.train")
             agent.train()
+    
+
+    plt.plot(scores)
+    plt.xlabel("Episode #")
+    plt.ylabel("Total score")
+    plt.savefig('lr001.png')
 
 
     

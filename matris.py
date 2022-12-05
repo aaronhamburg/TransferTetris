@@ -71,23 +71,23 @@ class Matris(object):
 
     # returns a 2D np array representing the board state and current and next pieces
     def current_state(self):
-        board_state = np.empty((MATRIX_HEIGHT, MATRIX_WIDTH))
+        board_state = np.empty((MATRIX_HEIGHT, MATRIX_WIDTH, 1))
         for key in self.matrix.keys():
             val = self.matrix.get(key)
             if val == None or val == False:
-                board_state[(key[0], key[1])] = 0
+                board_state[(key[0], key[1], 0)] = 0
             elif val[0] == 'block':
-                board_state[(key[0], key[1])] = 1
+                board_state[(key[0], key[1], 0)] = 1
             else:
-                board_state[(key[0], key[1])] = 0
+                board_state[(key[0], key[1], 0)] = 0
 
-        piece_state = np.zeros((4, MATRIX_WIDTH))
+        piece_state = np.zeros((4, MATRIX_WIDTH, 1))
         cur_piece = self.piece_to_array(self.current_tetromino)
         next_piece = self.piece_to_array(self.next_tetromino)
         cur_piece_size = cur_piece.shape[0]
         next_piece_size = next_piece.shape[0]
-        piece_state[0:int(cur_piece_size), 0:int(cur_piece_size)] = cur_piece
-        piece_state[0:int(next_piece_size), 5:int(5+next_piece_size)] = next_piece
+        piece_state[0:int(cur_piece_size), 0:int(cur_piece_size), 0] = cur_piece
+        piece_state[0:int(next_piece_size), 5:int(5+next_piece_size), 0] = next_piece
 
         return np.concatenate((piece_state, board_state), axis=0)
 
@@ -96,7 +96,7 @@ class Matris(object):
         piece_shape = np.asarray(piece.shape)
         for col in range(len(piece_shape)):
             for row in range(len(piece_shape)):
-                piece_shape[col, row] = 1 if piece_shape[col, row] else 0
+                piece_shape[col, row] = np.array(1) if piece_shape[col, row] else np.array(0)
         return piece_shape
 
 
@@ -129,6 +129,7 @@ class Matris(object):
         left, right = piece_range(self.rotated(self.tetromino_rotation))
         if position not in range(-left, 10 - right):
             self.score -= 100
+            # pass
         
 
         start_pos = self.tetromino_position[1]
