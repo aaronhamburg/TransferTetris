@@ -12,9 +12,10 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Activation
 from tensorflow.keras.optimizers import Adam
 from matplotlib import pyplot as plt
+import heapq
 import pygame
 
-DRAW_WAIT_TIME = 0.1
+DRAW_WAIT_TIME = .5
 
 class Agent(object):
     
@@ -28,7 +29,7 @@ class Agent(object):
         self.lr = 0.001
         self.gamma = 0.99
         self.exploration_proba = 1.0
-        self.exploration_proba_decay = 0.005
+        self.exploration_proba_decay = 0.01
         self.batch_size = 32
         
         # We define our memory buffer where we will store our experiences
@@ -46,9 +47,7 @@ class Agent(object):
         #     Dense(units=self.n_actions, activation = 'linear')
         # ])
         model = models.Sequential()
-        model.add(layers.Conv2D(32, (7, 7), padding='same', activation='relu', input_shape=(26, 10, 1)))
-        model.add(layers.MaxPooling2D((2, 2)))
-        model.add(layers.Conv2D(64, (5, 5), padding='same', activation='relu'))
+        model.add(layers.Conv2D(32, (3, 3), padding='same', activation='relu', input_shape=(26, 10, 1)))
         model.add(layers.MaxPooling2D((2, 2)))
         model.add(layers.Conv2D(64, (3, 3), padding='same', activation='relu'))
         model.add(layers.Flatten())
@@ -67,6 +66,7 @@ class Agent(object):
         reward = None
         steps = 0
         total_score = 0
+        total_reward = 0
         while True:
             try:
                 if next_state is not None:
@@ -79,8 +79,10 @@ class Agent(object):
                 rotation, position = self.action_to_tuple(action)
                 if draw_screen:
                     time.sleep(DRAW_WAIT_TIME)
-                reward = game.matris.computer_update(rotation, position)
-                total_score += reward
+                score, reward = game.matris.computer_update(rotation, position)
+                reward += 1
+                total_score += score
+                total_reward += reward
                 next_state = game.matris.current_state()
                 # return whether done and next state, maybe can set next_state = current state at the start of the loop if it's set
 
@@ -92,13 +94,13 @@ class Agent(object):
                     game.redraw()
             except GameOver:
                 next_state = game.matris.current_state()
-                self.store_episode(current_state, action, 0, next_state, True)
+                self.store_episode(current_state, action, -1000, next_state, True)
                 if not always_explore:
                     self.update_exploration_probability()
                 if draw_screen:
                     time.sleep(DRAW_WAIT_TIME)
                     pygame.display.quit()
-                return (steps, total_score)
+                return (steps, total_score, total_reward, game.matris.lines)
 
 
     # The agent computes the action to perform given a state 
@@ -112,7 +114,7 @@ class Agent(object):
         if always_explore or np.random.uniform(0,1) < self.exploration_proba:
             return np.random.choice(range(self.n_actions))
 
-        q_values = self.model.predict(np.array([current_state]))[0]
+        q_values = self.model.predict(np.array([current_state]), verbose=0)[0]
         return np.argmax(q_values)
 
 
@@ -129,16 +131,23 @@ class Agent(object):
         self.exploration_proba = self.exploration_proba * np.exp(-self.exploration_proba_decay)
         print(self.exploration_proba)
     
+    class Experience(object):
+        def __init__(self, current_state, action, reward, next_state, done):
+            self.current_state = current_state
+            self.action = action
+            self.reward = reward
+            self.next_state = next_state
+            self.done = done
+
+        def __gt__(self, other):
+            return np.abs(self.reward) > np.abs(other.reward)
+            
+
     # At each time step, we store the corresponding experience
     def store_episode(self,current_state, action, reward, next_state, done):
-        #We use a dictionnary to store them
-        self.memory_buffer.append({
-            "current_state":np.array([current_state]),
-            "action":action,
-            "reward":reward,
-            "next_state":np.array([next_state]),
-            "done" :done
-        })
+        #We use an Experience object to store them so they can be sorted into a max heap
+        self.memory_buffer.append(self.Experience(np.array([current_state]), action, reward, np.array([next_state]), done))
+        # heapq.heappush(self.memory_buffer, self.Experience(np.array([current_state]), action, reward, np.array([next_state]), done))
         # If the size of memory buffer exceeds its maximum, we remove the oldest experience
         if len(self.memory_buffer) > self.max_memory_buffer:
             self.memory_buffer.pop(0)
@@ -146,21 +155,24 @@ class Agent(object):
 
     # At the end of each episode, we train our model
     def train(self):
-        # We shuffle the memory buffer and select a batch size of experiences
-        np.random.shuffle(self.memory_buffer)
-        batch_sample = self.memory_buffer[0:self.batch_size]
+        # # We shuffle the memory buffer and select a batch size of experiences
+        # np.random.shuffle(self.memory_buffer)
+
+        # We choose the elements with the highest absolute value reward to encourage it to learn from important events
+        # batch_sample = self.memory_buffer[0:self.batch_size]
+        batch_sample = heapq.nlargest(self.batch_size, self.memory_buffer)
         
         # We iterate over the selected experiences
         for experience in batch_sample:
             # We compute the Q-values of S_t
-            q_current_state = self.model.predict(experience["current_state"])
+            q_current_state = self.model.predict(experience.current_state, verbose=0)
             # We compute the Q-target using Bellman optimality equation
-            q_target = experience["reward"]
-            if not experience["done"]:
-                q_target = q_target + self.gamma*np.max(self.model.predict(experience["next_state"])[0])
-            q_current_state[0][experience["action"]] = q_target
+            q_target = experience.reward
+            if not experience.done:
+                q_target = q_target + self.gamma*np.max(self.model.predict(experience.next_state, verbose=0)[0])
+            q_current_state[0][experience.action] = q_target
             # train the model
-            self.model.fit(experience["current_state"], q_current_state, verbose=0)
+            self.model.fit(experience.current_state, q_current_state, verbose=0)
 
 if __name__ == '__main__':
 
@@ -168,14 +180,15 @@ if __name__ == '__main__':
     # env = gym.make("CartPole-v1")
     
     # Number of episodes to run
-    n_explore_episodes = 500
-    n_episodes = 1000
+    n_explore_episodes = 0
+    n_episodes = 500
     
     # After how many episodes it should be drawn (if 0 it will never draw)
-    draw_frequency = 100
+    draw_frequency = 0
 
     total_steps = 0
     scores = np.zeros(n_episodes)
+    rewards = np.zeros(n_episodes)
     # We define our agent
     agent = Agent()
 
@@ -190,19 +203,23 @@ if __name__ == '__main__':
         draw = False
         if not draw_frequency == 0:
             draw = ep % draw_frequency == draw_frequency - 1
-        steps, score = agent.run_episode(draw_screen=draw and not explore, always_explore=explore)
+        steps, score, reward = agent.run_episode(draw_screen=draw and not explore, always_explore=explore)
         total_steps += steps
         scores[ep] = score
+        rewards[ep] = reward
 
         if total_steps >= agent.batch_size:
-            print("reached agent.train")
             agent.train()
     
 
     plt.plot(scores)
     plt.xlabel("Episode #")
     plt.ylabel("Total score")
-    plt.savefig('lr001.png')
+    plt.savefig('heuristic_square_scores.png')
+    plt.plot(rewards)
+    plt.xlabel("Episode #")
+    plt.ylabel("Total reward (heuristic)")
+    plt.savefig('heuristic_square_rewards.png')
 
 
     

@@ -64,6 +64,7 @@ class Matris(object):
         self.level = 1
         self.score = 0
         self.lines = 0
+        self.fitness = 0
 
         self.combo = 1 # Combo will increase when you clear lines with several tetrominos in a row
         
@@ -90,6 +91,40 @@ class Matris(object):
         piece_state[0:int(next_piece_size), 5:int(5+next_piece_size), 0] = next_piece
 
         return np.concatenate((piece_state, board_state), axis=0)
+    
+    def update_fitness(self):
+        board_state = np.empty((MATRIX_HEIGHT, MATRIX_WIDTH, 1))
+        for key in self.matrix.keys():
+            val = self.matrix.get(key)
+            if val == None or val == False:
+                board_state[(key[0], key[1], 0)] = 0
+            elif val[0] == 'block':
+                board_state[(key[0], key[1], 0)] = 1
+            else:
+                board_state[(key[0], key[1], 0)] = 0
+        
+        heights = np.zeros(MATRIX_WIDTH)
+        for col in range(MATRIX_WIDTH):
+            for row in range(MATRIX_HEIGHT):
+                if board_state[(row, col)] == 1:
+                    heights[col] = MATRIX_HEIGHT - row
+                    break
+        
+        summed_heights = np.sum(heights)
+        num_lines = self.lines
+        
+        holes = 0
+        for col in range(MATRIX_WIDTH):
+            for row in range(int(MATRIX_HEIGHT - 1), int(MATRIX_HEIGHT - heights[col]), -1):
+                if board_state[(row, col)] == 0:
+                    holes += 1
+
+        bumpiness = 0
+        for col in range(MATRIX_WIDTH - 1):
+            bumpiness += np.abs(heights[col] - heights[col + 1])
+        
+
+        self.fitness = (-.51 * summed_heights) + (5 * num_lines) + (-.36 * holes) +  (-.1 * bumpiness)
 
     # converts a Tetromino to a 2D np array containing 1's and 0's
     def piece_to_array(self, piece: Tetromino):
@@ -121,15 +156,21 @@ class Matris(object):
         # TODO: check that rotation and position are valid
         # *may* not need to handle this since the environment will prevent illegal moves
 
+        if self.draw_screen:
+            events = pygame.event.get()
+            for event in events:
+                pass
+
         start_score = self.score
+        start_fitness = self.fitness
 
         for i in range(rotation):
             self.request_rotation()
         
         left, right = piece_range(self.rotated(self.tetromino_rotation))
         if position not in range(-left, 10 - right):
-            self.score -= 100
-            # pass
+            # self.score -= 100
+            pass
         
 
         start_pos = self.tetromino_position[1]
@@ -142,7 +183,12 @@ class Matris(object):
         
         self.hard_drop()
 
-        return self.score - start_score
+        # this is the game score
+        # return self.score - start_score
+
+        # this is (game score, heuristic reward, lines cleared)
+        self.update_fitness()
+        return (self.score - start_score, self.fitness - start_fitness)
         
 
     def update(self, timepassed):
