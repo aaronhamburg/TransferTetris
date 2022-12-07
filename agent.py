@@ -29,7 +29,7 @@ class Agent(object):
         self.lr = 0.001
         self.gamma = 0.99
         self.exploration_proba = 1.0
-        self.exploration_proba_decay = 0.01
+        self.exploration_proba_decay = 0.005
         self.batch_size = 32
         
         # We define our memory buffer where we will store our experiences
@@ -80,7 +80,7 @@ class Agent(object):
                 if draw_screen:
                     time.sleep(DRAW_WAIT_TIME)
                 score, reward = game.matris.computer_update(rotation, position)
-                reward += 1
+                reward += 2
                 total_score += score
                 total_reward += reward
                 next_state = game.matris.current_state()
@@ -119,7 +119,7 @@ class Agent(object):
 
 
     def action_to_tuple(self, action):
-        rotation = action % 4
+        rotation = action // 4
         position = action % 11 - 2
         return (rotation, position)
         
@@ -129,7 +129,7 @@ class Agent(object):
     # espilon greedy algorithm
     def update_exploration_probability(self):
         self.exploration_proba = self.exploration_proba * np.exp(-self.exploration_proba_decay)
-        print(self.exploration_proba)
+        # print(self.exploration_proba)
     
     class Experience(object):
         def __init__(self, current_state, action, reward, next_state, done):
