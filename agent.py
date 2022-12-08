@@ -80,7 +80,7 @@ class Agent(object):
                 if draw_screen:
                     time.sleep(DRAW_WAIT_TIME)
                 score, reward = game.matris.computer_update(rotation, position)
-                reward += 2
+                reward += 5
                 total_score += score
                 total_reward += reward
                 next_state = game.matris.current_state()
@@ -173,6 +173,7 @@ class Agent(object):
             q_current_state[0][experience.action] = q_target
             # train the model
             self.model.fit(experience.current_state, q_current_state, verbose=0)
+            self.memory_buffer.remove(experience)
 
 if __name__ == '__main__':
 
