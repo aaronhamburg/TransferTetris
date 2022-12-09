@@ -50,6 +50,7 @@ class Agent(object):
         model.add(layers.Conv2D(32, (3, 3), padding='same', activation='relu', input_shape=(26, 10, 1)))
         model.add(layers.MaxPooling2D((2, 2)))
         model.add(layers.Conv2D(64, (3, 3), padding='same', activation='relu'))
+        model.add(layers.MaxPooling2D((2, 2)))
         model.add(layers.Flatten())
         model.add(layers.Dense(64, activation='relu'))
         model.add(layers.Dense(self.n_actions, activation='linear'))
@@ -80,7 +81,7 @@ class Agent(object):
                 if draw_screen:
                     time.sleep(DRAW_WAIT_TIME)
                 score, reward = game.matris.computer_update(rotation, position)
-                reward += 5
+                reward += 10
                 total_score += score
                 total_reward += reward
                 next_state = game.matris.current_state()
@@ -93,7 +94,8 @@ class Agent(object):
                     time.sleep(DRAW_WAIT_TIME)
                     game.redraw()
             except GameOver:
-                next_state = game.matris.current_state()
+                # next_state = game.matris.current_state()
+                next_state = np.ones_like(game.matris.current_state())
                 self.store_episode(current_state, action, -1000, next_state, True)
                 if not always_explore:
                     self.update_exploration_probability()

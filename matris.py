@@ -123,8 +123,9 @@ class Matris(object):
         for col in range(MATRIX_WIDTH - 1):
             bumpiness += np.abs(heights[col] - heights[col + 1])
         
+        height_difference = np.max(heights) - np.min(heights)
 
-        self.fitness = (-.18 * summed_heights) + (200 * num_lines) + (-.54 * holes) +  (-.36 * bumpiness)
+        self.fitness = (-.18 * summed_heights) + (200 * num_lines) + (-.54 * holes) +  (-.36 * bumpiness) + (-1.5 * height_difference)
 
     # converts a Tetromino to a 2D np array containing 1's and 0's
     def piece_to_array(self, piece: Tetromino):
