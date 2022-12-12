@@ -29,7 +29,7 @@ class Agent(object):
         self.lr = 0.001
         self.gamma = 0.99
         self.exploration_proba = 1.0
-        self.exploration_proba_decay = 0.01
+        self.exploration_proba_decay = 0.005
         self.batch_size = 32
         
         # We define our memory buffer where we will store our experiences
@@ -50,6 +50,7 @@ class Agent(object):
         model.add(layers.Conv2D(32, (3, 3), padding='same', activation='relu', input_shape=(26, 10, 1)))
         model.add(layers.MaxPooling2D((2, 2)))
         model.add(layers.Conv2D(64, (3, 3), padding='same', activation='relu'))
+        model.add(layers.MaxPooling2D((2, 2)))
         model.add(layers.Flatten())
         model.add(layers.Dense(64, activation='relu'))
         model.add(layers.Dense(self.n_actions, activation='linear'))
@@ -80,9 +81,7 @@ class Agent(object):
                 if draw_screen:
                     time.sleep(DRAW_WAIT_TIME)
                 score, reward = game.matris.computer_update(rotation, position)
-                if (reward > 0):
-                    print(reward)
-                reward += 2
+                reward += 10
                 total_score += score
                 total_reward += reward
                 next_state = game.matris.current_state()
@@ -95,7 +94,8 @@ class Agent(object):
                     time.sleep(DRAW_WAIT_TIME)
                     game.redraw()
             except GameOver:
-                next_state = game.matris.current_state()
+                # next_state = game.matris.current_state()
+                next_state = np.ones_like(game.matris.current_state())
                 self.store_episode(current_state, action, -1000, next_state, True)
                 if not always_explore:
                     self.update_exploration_probability()
@@ -122,7 +122,7 @@ class Agent(object):
 
     def action_to_tuple(self, action):
         rotation = action // 4
-        position = (action % 11) - 2
+        position = action % 11 - 2
         return (rotation, position)
         
 
@@ -131,7 +131,7 @@ class Agent(object):
     # espilon greedy algorithm
     def update_exploration_probability(self):
         self.exploration_proba = self.exploration_proba * np.exp(-self.exploration_proba_decay)
-        print(self.exploration_proba)
+        # print(self.exploration_proba)
     
     class Experience(object):
         def __init__(self, current_state, action, reward, next_state, done):
@@ -175,6 +175,7 @@ class Agent(object):
             q_current_state[0][experience.action] = q_target
             # train the model
             self.model.fit(experience.current_state, q_current_state, verbose=0)
+            self.memory_buffer.remove(experience)
 
 if __name__ == '__main__':
 

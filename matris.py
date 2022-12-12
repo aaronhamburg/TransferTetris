@@ -123,8 +123,9 @@ class Matris(object):
         for col in range(MATRIX_WIDTH - 1):
             bumpiness += np.abs(heights[col] - heights[col + 1])
         
+        height_difference = np.max(heights) - np.min(heights)
 
-        self.fitness = (-.51 * summed_heights) + (5 * num_lines) + (-.36 * holes) +  (-.1 * bumpiness)
+        self.fitness = (-.18 * summed_heights) + (200 * num_lines) + (-.54 * holes) +  (-.36 * bumpiness) + (-1.5 * height_difference)
 
     # converts a Tetromino to a 2D np array containing 1's and 0's
     def piece_to_array(self, piece: Tetromino):
@@ -187,7 +188,6 @@ class Matris(object):
         # return self.score - start_score
 
         # this is (game score, heuristic reward, lines cleared)
-        self.update_fitness()
         return (self.score - start_score, self.fitness - start_fitness)
         
 
@@ -398,6 +398,8 @@ class Matris(object):
         if self.lines >= self.level*10:
             self.level += 1
 
+        self.update_fitness()
+
         self.combo = self.combo + 1 if lines_cleared else 1
 
         self.set_tetrominoes()
@@ -520,12 +522,14 @@ class Game(object):
             return surf
 
         scoresurf = renderpair("Score", self.matris.score)
+        fitnesssurf = renderpair("Fitness", round(self.matris.fitness, 2))
         levelsurf = renderpair("Level", self.matris.level)
         linessurf = renderpair("Lines", self.matris.lines)
         combosurf = renderpair("Combo", "x{}".format(self.matris.combo))
 
         height = 20 + (levelsurf.get_rect().height + 
                        scoresurf.get_rect().height +
+                       fitnesssurf.get_rect().height + 
                        linessurf.get_rect().height + 
                        combosurf.get_rect().height )
 
@@ -535,8 +539,9 @@ class Game(object):
 
         area.blit(levelsurf, (0,0))
         area.blit(scoresurf, (0, levelsurf.get_rect().height))
-        area.blit(linessurf, (0, levelsurf.get_rect().height + scoresurf.get_rect().height))
-        area.blit(combosurf, (0, levelsurf.get_rect().height + scoresurf.get_rect().height + linessurf.get_rect().height))
+        area.blit(fitnesssurf, (0, levelsurf.get_rect().height + scoresurf.get_rect().height))
+        area.blit(linessurf, (0, levelsurf.get_rect().height + scoresurf.get_rect().height + fitnesssurf.get_rect().height))
+        area.blit(combosurf, (0, levelsurf.get_rect().height + scoresurf.get_rect().height + fitnesssurf.get_rect().height + linessurf.get_rect().height))
 
         self.screen.blit(area, area.get_rect(bottom=HEIGHT-MATRIS_OFFSET, centerx=TRICKY_CENTERX))
 
