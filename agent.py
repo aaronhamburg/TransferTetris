@@ -80,7 +80,9 @@ class Agent(object):
                 if draw_screen:
                     time.sleep(DRAW_WAIT_TIME)
                 score, reward = game.matris.computer_update(rotation, position)
-                reward += 1
+                if (reward > 0):
+                    print(reward)
+                reward += 2
                 total_score += score
                 total_reward += reward
                 next_state = game.matris.current_state()
@@ -119,8 +121,8 @@ class Agent(object):
 
 
     def action_to_tuple(self, action):
-        rotation = action % 4
-        position = action % 11 - 2
+        rotation = action // 4
+        position = (action % 11) - 2
         return (rotation, position)
         
 
