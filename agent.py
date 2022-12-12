@@ -28,7 +28,7 @@ class Agent(object):
         # "batch_size": size of experiences we sample to train the DNN
         self.lr = 0.001
         self.gamma = 0.99
-        self.exploration_proba = 1.0
+        self.exploration_proba = 0
         self.exploration_proba_decay = 0.005
         self.batch_size = 32
         
@@ -121,7 +121,7 @@ class Agent(object):
 
 
     def action_to_tuple(self, action):
-        rotation = action // 4
+        rotation = action // 11
         position = action % 11 - 2
         return (rotation, position)
         
