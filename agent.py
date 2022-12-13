@@ -15,7 +15,7 @@ from matplotlib import pyplot as plt
 import heapq
 import pygame
 
-DRAW_WAIT_TIME = .5
+DRAW_WAIT_TIME = .25
 
 class Agent(object):
     
@@ -30,7 +30,7 @@ class Agent(object):
         self.gamma = 0.99
         self.exploration_proba = 1.0
         self.exploration_proba_decay = 0.005
-        self.batch_size = 32
+        self.batch_size = 128
         
         # We define our memory buffer where we will store our experiences
         # We stores only the 2000 last time steps
@@ -175,7 +175,7 @@ class Agent(object):
             q_current_state[0][experience.action] = q_target
             # train the model
             self.model.fit(experience.current_state, q_current_state, verbose=0)
-            self.memory_buffer.remove(experience)
+            # self.memory_buffer.remove(experience)
 
 if __name__ == '__main__':
 
