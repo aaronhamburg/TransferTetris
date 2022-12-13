@@ -26,11 +26,11 @@ class Agent(object):
         # "gamma": discounted factor
         # "exploration_proba_decay": decay of the exploration probability
         # "batch_size": size of experiences we sample to train the DNN
-        self.lr = 0.001
+        self.lr = 0.05
         self.gamma = 0.99
-        self.exploration_proba = 0
+        self.exploration_proba = 1.0
         self.exploration_proba_decay = 0.005
-        self.batch_size = 32
+        self.batch_size = 64
         
         # We define our memory buffer where we will store our experiences
         # We stores only the 2000 last time steps
@@ -58,7 +58,7 @@ class Agent(object):
         self.model.compile(loss="mse",
                       optimizer = Adam(learning_rate=self.lr))
 
-    def run_episode(self, draw_screen=False, always_explore=False):
+    def run_episode(self, draw_screen=False, always_explore=False, max_steps=-1):
         game = Game()
         game.main(draw_screen=draw_screen, comp_control=True)
         next_state = None
@@ -68,7 +68,7 @@ class Agent(object):
         steps = 0
         total_score = 0
         total_reward = 0
-        while True:
+        while steps < max_steps:
             try:
                 if next_state is not None:
                     current_state = next_state
@@ -103,6 +103,10 @@ class Agent(object):
                     time.sleep(DRAW_WAIT_TIME)
                     pygame.display.quit()
                 return (steps, total_score, total_reward, game.matris.lines)
+        if draw_screen:
+            time.sleep(DRAW_WAIT_TIME)
+            pygame.display.quit()
+        return (steps, total_score, total_reward, game.matris.lines)
 
 
     # The agent computes the action to perform given a state 
@@ -158,14 +162,16 @@ class Agent(object):
     # At the end of each episode, we train our model
     def train(self):
         # # We shuffle the memory buffer and select a batch size of experiences
-        # np.random.shuffle(self.memory_buffer)
+        batch = np.random.permutation(self.memory_buffer)
 
         # We choose the elements with the highest absolute value reward to encourage it to learn from important events
-        # batch_sample = self.memory_buffer[0:self.batch_size]
-        batch_sample = heapq.nlargest(self.batch_size, self.memory_buffer)
-        
+        batch_sample = batch[0:self.batch_size]
+        # batch_sample = heapq.nlargest(self.batch_size, self.memory_buffer)
+        q_targets = np.empty((self.batch_size, self.n_actions))
+        states = np.empty((self.batch_size,) + batch_sample[0].current_state.shape[1:])
+
         # We iterate over the selected experiences
-        for experience in batch_sample:
+        for index, experience in enumerate(batch_sample):
             # We compute the Q-values of S_t
             q_current_state = self.model.predict(experience.current_state, verbose=0)
             # We compute the Q-target using Bellman optimality equation
@@ -173,9 +179,13 @@ class Agent(object):
             if not experience.done:
                 q_target = q_target + self.gamma*np.max(self.model.predict(experience.next_state, verbose=0)[0])
             q_current_state[0][experience.action] = q_target
+            q_targets[index] = q_current_state[0]
+            states[index] = experience.current_state
             # train the model
-            self.model.fit(experience.current_state, q_current_state, verbose=0)
-            self.memory_buffer.remove(experience)
+            # self.model.fit(experience.current_state, q_current_state, verbose=0)
+            # self.memory_buffer.remove(experience)
+        
+        self.model.fit(states, q_targets, verbose=0)
 
 if __name__ == '__main__':
 
