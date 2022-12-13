@@ -4,7 +4,7 @@ from pygame import Rect, Surface
 import random
 import numpy as np
 
-from tetrominoes import Tetromino, list_of_tetrominoes, rotate, piece_range
+from tetrominoes import Tetromino, list_of_tetrominoes, rotate
 
 class GameOver(Exception):
     """Exception used for its control flow properties"""
@@ -73,8 +73,9 @@ class Matris(object):
     # returns a 2D np array representing the board state and current and next pieces
     def current_state(self):
         board_state = np.empty((MATRIX_HEIGHT, MATRIX_WIDTH, 1))
-        for key in self.matrix.keys():
-            val = self.matrix.get(key)
+        matrix = self.blend()
+        for key in matrix.keys():
+            val = matrix.get(key)
             if val == None or val == False:
                 board_state[(key[0], key[1], 0)] = 0
             elif val[0] == 'block':
@@ -82,15 +83,7 @@ class Matris(object):
             else:
                 board_state[(key[0], key[1], 0)] = 0
 
-        piece_state = np.zeros((4, MATRIX_WIDTH, 1))
-        cur_piece = self.piece_to_array(self.current_tetromino)
-        next_piece = self.piece_to_array(self.next_tetromino)
-        cur_piece_size = cur_piece.shape[0]
-        next_piece_size = next_piece.shape[0]
-        piece_state[0:int(cur_piece_size), 0:int(cur_piece_size), 0] = cur_piece
-        piece_state[0:int(next_piece_size), 5:int(5+next_piece_size), 0] = next_piece
-
-        return np.concatenate((piece_state, board_state), axis=0)
+        return board_state
     
     def update_fitness(self):
         board_state = np.empty((MATRIX_HEIGHT, MATRIX_WIDTH, 1))
@@ -123,9 +116,9 @@ class Matris(object):
         for col in range(MATRIX_WIDTH - 1):
             bumpiness += np.abs(heights[col] - heights[col + 1])
         
-        height_difference = np.max(heights) - np.min(heights)
+        # height_difference = np.max(heights) - np.min(heights)
 
-        self.fitness = (-.18 * summed_heights) + (200 * num_lines) + (-.54 * holes) +  (-.36 * bumpiness) + (-1.5 * height_difference)
+        self.fitness = (-.18 * summed_heights) + (10 * num_lines) + (-.54 * holes) +  (-.36 * bumpiness)
 
     # converts a Tetromino to a 2D np array containing 1's and 0's
     def piece_to_array(self, piece: Tetromino):
@@ -137,6 +130,7 @@ class Matris(object):
 
 
     def set_tetrominoes(self):
+        self.tetromino_moved = {"rotation": 0, "position": 0}
         self.current_tetromino = self.next_tetromino
         self.next_tetromino = random.choice(list_of_tetrominoes)
         self.surface_of_next_tetromino = self.construct_surface_of_next_tetromino()
@@ -153,7 +147,7 @@ class Matris(object):
 
         self.lock_tetromino()
 
-    def computer_update(self, rotation, position):
+    def computer_update(self, action):
         # TODO: check that rotation and position are valid
         # *may* not need to handle this since the environment will prevent illegal moves
 
@@ -164,31 +158,44 @@ class Matris(object):
 
         start_score = self.score
         start_fitness = self.fitness
+        bad_move_score = 0
+        hard_dropped = 0
 
-        for i in range(rotation):
-            self.request_rotation()
-        
-        left, right = piece_range(self.rotated(self.tetromino_rotation))
-        if position not in range(-left, 10 - right):
-            # self.score -= 100
-            pass
-        
 
-        start_pos = self.tetromino_position[1]
-        if position <= start_pos:
-            for i in range(start_pos - position):
-                self.request_movement('left')
-        else:
-            for i in range(position - start_pos):
-                self.request_movement('right')
+        if action == 'left':
+            if self.request_movement('left'):
+                if self.tetromino_moved["position"] > 0:
+                    bad_move_score -= .1
+                self.tetromino_moved["position"] -= 1
+            else:
+                bad_move_score -= 1
+        elif action ==  'right':
+            if self.request_movement('right'):
+                if self.tetromino_moved["position"] < 0:
+                    bad_move_score -= .1
+                self.tetromino_moved["position"] += 1
+            else:
+                bad_move_score -= 1
+        elif action == 'rotate':
+            if self.request_rotation():
+                if self.tetromino_moved["rotation"] >= 3:
+                    bad_move_score -= .1
+                self.tetromino_moved["rotation"] += 1
+            else:
+                bad_move_score -= 1
+        elif action == 'hard drop':
+            hard_dropped = .2
+            self.hard_drop()
         
-        self.hard_drop()
+        if action != 'hard drop':
+            if not self.request_movement('down'):
+                self.lock_tetromino()
 
         # this is the game score
         # return self.score - start_score
 
         # this is (game score, heuristic reward, lines cleared)
-        return (self.score - start_score, self.fitness - start_fitness)
+        return (self.score - start_score, self.fitness - start_fitness + hard_dropped + bad_move_score)
         
 
     def update(self, timepassed):
@@ -224,7 +231,6 @@ class Matris(object):
             elif pressed(pygame.K_RIGHT) or pressed(pygame.K_d):
                 self.request_movement('right')
                 self.movement_keys['right'] = 1
-
             elif unpressed(pygame.K_LEFT) or unpressed(pygame.K_a):
                 self.movement_keys['left'] = 0
                 self.movement_keys_timer = (-self.movement_keys_speed)*2

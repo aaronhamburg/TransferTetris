@@ -16,54 +16,54 @@ list_of_tetrominoes = [
               color="yellow",
               shape=((X,X),
                      (X,X))),
-    # Tetromino(name="hat",
-    #           color="pink",
-    #           shape=((O,X,O),
-    #                  (X,X,X),
-    #                  (O,O,O))),
-    # Tetromino(name="right_snake",
-    #           color="green",
-    #           shape=((O,X,X),
-    #                  (X,X,O),
-    #                  (O,O,O))),
-    # Tetromino(name="left_snake",
-    #           color="red",
-    #           shape=((X,X,O),
-    #                  (O,X,X),
-    #                  (O,O,O))),
-    # Tetromino(name="left_gun",
-    #           color="cyan",
-    #           shape=((X,O,O),
-    #                  (X,X,X),
-    #                  (O,O,O))),
-    # Tetromino(name="right_gun",
-    #           color="orange",
-    #           shape=((O,O,X),
-    #                  (X,X,X),
-    #                  (O,O,O)))
+    Tetromino(name="hat",
+              color="pink",
+              shape=((O,X,O),
+                     (X,X,X),
+                     (O,O,O))),
+    Tetromino(name="right_snake",
+              color="green",
+              shape=((O,X,X),
+                     (X,X,O),
+                     (O,O,O))),
+    Tetromino(name="left_snake",
+              color="red",
+              shape=((X,X,O),
+                     (O,X,X),
+                     (O,O,O))),
+    Tetromino(name="left_gun",
+              color="cyan",
+              shape=((X,O,O),
+                     (X,X,X),
+                     (O,O,O))),
+    Tetromino(name="right_gun",
+              color="orange",
+              shape=((O,O,X),
+                     (X,X,X),
+                     (O,O,O)))
     ]
 
 def rotate(shape, times=1):
     """ Rotate a shape to the right """
     return shape if times == 0 else rotate(tuple(zip(*shape[::-1])), times-1)
 
-# returns the number of empty spaces to the left of the piece and 
-# the number of spaces from the left of the piece (including blanks) 
-# to the right of the actual piece
-def piece_range(shape):
-    a = np.array(shape)
-    right = 0
-    left = 0
-    found_piece = False
-    for i in range(a.shape[0]):
-        if 'X' not in a[:,i]:
-            if not found_piece:
-                left = i + 1
-        else:
-            found_piece = True
-            right = i + 1
+# # returns the number of empty spaces to the left of the piece and 
+# # the number of spaces from the left of the piece (including blanks) 
+# # to the right of the actual piece
+# def piece_range(shape):
+#     a = np.array(shape)
+#     right = 0
+#     left = 0
+#     found_piece = False
+#     for i in range(a.shape[0]):
+#         if 'X' not in a[:,i]:
+#             if not found_piece:
+#                 left = i + 1
+#         else:
+#             found_piece = True
+#             right = i + 1
 
-    return (left, right)
+#     return (left, right)
 
 def shape_str(shape):
     """ Return a string of a shape in human readable form """

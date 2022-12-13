@@ -15,18 +15,18 @@ from matplotlib import pyplot as plt
 import heapq
 import pygame
 
-DRAW_WAIT_TIME = .5
+DRAW_WAIT_TIME = .025
 
 class Agent(object):
     
     def __init__(self):
-        self.n_actions = 44
+        self.n_actions = 5
         # we define some parameters and hyperparameters:
         # "lr" : learning rate
         # "gamma": discounted factor
         # "exploration_proba_decay": decay of the exploration probability
         # "batch_size": size of experiences we sample to train the DNN
-        self.lr = 0.05
+        self.lr = 0.01
         self.gamma = 0.99
         self.exploration_proba = 1.0
         self.exploration_proba_decay = 0.005
@@ -47,7 +47,7 @@ class Agent(object):
         #     Dense(units=self.n_actions, activation = 'linear')
         # ])
         model = models.Sequential()
-        model.add(layers.Conv2D(32, (3, 3), padding='same', activation='relu', input_shape=(26, 10, 1)))
+        model.add(layers.Conv2D(32, (3, 3), padding='same', activation='relu', input_shape=(MATRIX_HEIGHT, MATRIX_WIDTH, 1)))
         model.add(layers.MaxPooling2D((2, 2)))
         model.add(layers.Conv2D(64, (3, 3), padding='same', activation='relu'))
         model.add(layers.MaxPooling2D((2, 2)))
@@ -68,7 +68,10 @@ class Agent(object):
         steps = 0
         total_score = 0
         total_reward = 0
-        while steps < max_steps:
+        condition = True
+        if max_steps >= 0:
+            condition = steps < max_steps
+        while condition:
             try:
                 if next_state is not None:
                     current_state = next_state
@@ -77,11 +80,10 @@ class Agent(object):
 
                 steps += 1
                 action = self.compute_action(current_state, always_explore=always_explore)
-                rotation, position = self.action_to_tuple(action)
+                action_string = self.action_to_move(action)
                 if draw_screen:
                     time.sleep(DRAW_WAIT_TIME)
-                score, reward = game.matris.computer_update(rotation, position)
-                reward += 10
+                score, reward = game.matris.computer_update(action_string)
                 total_score += score
                 total_reward += reward
                 next_state = game.matris.current_state()
@@ -94,19 +96,13 @@ class Agent(object):
                     time.sleep(DRAW_WAIT_TIME)
                     game.redraw()
             except GameOver:
-                # next_state = game.matris.current_state()
-                next_state = np.ones_like(game.matris.current_state())
-                self.store_episode(current_state, action, -1000, next_state, True)
+                self.store_episode(current_state, action, -1000, None, True)
                 if not always_explore:
                     self.update_exploration_probability()
                 if draw_screen:
                     time.sleep(DRAW_WAIT_TIME)
                     pygame.display.quit()
                 return (steps, total_score, total_reward, game.matris.lines)
-        if draw_screen:
-            time.sleep(DRAW_WAIT_TIME)
-            pygame.display.quit()
-        return (steps, total_score, total_reward, game.matris.lines)
 
 
     # The agent computes the action to perform given a state 
@@ -124,10 +120,17 @@ class Agent(object):
         return np.argmax(q_values)
 
 
-    def action_to_tuple(self, action):
-        rotation = action // 11
-        position = action % 11 - 2
-        return (rotation, position)
+    def action_to_move(self, action):
+        if action == 0: 
+            return 'left'
+        if action == 1:
+            return 'right'
+        if action == 2:
+            return 'rotate'
+        if action == 3:
+            return 'drop'
+        return 'do nothing'
+        
         
 
 
