@@ -1,6 +1,6 @@
 from matris import Game, GameOver, WIDTH, HEIGHT, MATRIX_WIDTH, MATRIX_HEIGHT
 import time
-import random
+# import random
 
 import numpy as np
 # import gym
@@ -8,12 +8,11 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers, models
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Activation
+from tensorflow.keras import backend as K
 from tensorflow.keras.optimizers import Adam
 from matplotlib import pyplot as plt
-import heapq
 import pygame
+import gc
 
 DRAW_WAIT_TIME = .025
 
@@ -116,7 +115,8 @@ class Agent(object):
         if always_explore or np.random.uniform(0,1) < self.exploration_proba:
             return np.random.choice(range(self.n_actions))
 
-        q_values = self.model.predict(np.array([current_state]), verbose=0)[0]
+        tensor = tf.convert_to_tensor(np.array([current_state]), dtype=tf.float32)
+        q_values = self.model.predict(tensor, verbose=0)[0]
         return np.argmax(q_values)
 
 
@@ -139,24 +139,18 @@ class Agent(object):
     def update_exploration_probability(self):
         self.exploration_proba = self.exploration_proba * np.exp(-self.exploration_proba_decay)
         # print(self.exploration_proba)
-    
-    class Experience(object):
-        def __init__(self, current_state, action, reward, next_state, done):
-            self.current_state = current_state
-            self.action = action
-            self.reward = reward
-            self.next_state = next_state
-            self.done = done
-
-        def __gt__(self, other):
-            return np.abs(self.reward) > np.abs(other.reward)
-            
 
     # At each time step, we store the corresponding experience
     def store_episode(self,current_state, action, reward, next_state, done):
         #We use an Experience object to store them so they can be sorted into a max heap
-        self.memory_buffer.append(self.Experience(np.array([current_state]), action, reward, np.array([next_state]), done))
-        # heapq.heappush(self.memory_buffer, self.Experience(np.array([current_state]), action, reward, np.array([next_state]), done))
+        # self.memory_buffer.append(self.Experience(np.array([current_state]), action, reward, np.array([next_state]), done))
+        self.memory_buffer.append({
+            "current_state":np.array([current_state]),
+            "action":action,
+            "reward":reward,
+            "next_state":np.array([next_state]),
+            "done":done
+        })
         # If the size of memory buffer exceeds its maximum, we remove the oldest experience
         if len(self.memory_buffer) > self.max_memory_buffer:
             self.memory_buffer.pop(0)
@@ -164,30 +158,32 @@ class Agent(object):
 
     # At the end of each episode, we train our model
     def train(self):
+        K.clear_session()
+        gc.collect()
         # # We shuffle the memory buffer and select a batch size of experiences
         batch = np.random.permutation(self.memory_buffer)
 
         # We choose the elements with the highest absolute value reward to encourage it to learn from important events
         batch_sample = batch[0:self.batch_size]
-        # batch_sample = heapq.nlargest(self.batch_size, self.memory_buffer)
-        q_targets = np.empty((self.batch_size, self.n_actions))
-        states = np.empty((self.batch_size,) + batch_sample[0].current_state.shape[1:])
+        q_targets = np.zeros((self.batch_size, self.n_actions))
+        states = np.zeros((self.batch_size,) + (MATRIX_HEIGHT, MATRIX_WIDTH, 1))
 
         # We iterate over the selected experiences
         for index, experience in enumerate(batch_sample):
             # We compute the Q-values of S_t
-            q_current_state = self.model.predict(experience.current_state, verbose=0)
+            tensor = tf.convert_to_tensor(experience['current_state'], dtype=tf.float32)
+            q_current_state = self.model.predict(tensor, verbose=0)
             # We compute the Q-target using Bellman optimality equation
-            q_target = experience.reward
-            if not experience.done:
-                q_target = q_target + self.gamma*np.max(self.model.predict(experience.next_state, verbose=0)[0])
-            q_current_state[0][experience.action] = q_target
+            q_target = experience['reward']
+            if not experience['done']:
+                tensor = tf.convert_to_tensor(experience['next_state'], dtype=tf.float32)
+                q_target = q_target + self.gamma*np.max(self.model.predict(tensor, verbose=0)[0])
+            q_current_state[0][experience['action']] = q_target
             q_targets[index] = q_current_state[0]
-            states[index] = experience.current_state
+            states[index] = experience['current_state']
             # train the model
-            # self.model.fit(experience.current_state, q_current_state, verbose=0)
-            # self.memory_buffer.remove(experience)
-        
+            # self.model.fit(experience['current_state'], q_current_state, verbose=0)
+
         self.model.fit(states, q_targets, verbose=0)
 
 if __name__ == '__main__':
